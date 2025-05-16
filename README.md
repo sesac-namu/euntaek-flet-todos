@@ -23,7 +23,7 @@ https://docs.astral.sh/uv/ # 리눅스/맥
 1. 프로젝트 받기
 
 ```sh
-git clone https://github.com/sesac-namu/euntaek-todo-list flet-todos
+git clone https://github.com/sesac-namu/euntaek-flet-todos flet-todos
 cd flet-todos
 ```
 
