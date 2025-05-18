@@ -11,7 +11,9 @@ class Route:
 
 
 class Router:
+    MAX_HISTORY_LENGTH = 10
     history: list[str]
+    history_index: int
     routes: list[Route]
     current_path: str
     page: ft.Page
@@ -22,9 +24,18 @@ class Router:
 
     def __init__(self, page: ft.Page):
         self.history = []
+        self.history_index = 0
         self.routes = []
         self.current_path = page.route
         self.page = page
+
+    def add_history(self, path: str):
+        if len(self.history) == Router.MAX_HISTORY_LENGTH:
+            self.history.pop(0)
+            self.history.append(path)
+        else:
+            self.history_index += 1
+            self.history.append(path)
 
     def add_route(self, path: str, view_components: list[ft.Control]):
         route = Route(path, view_components)
@@ -38,17 +49,28 @@ class Router:
                 self.page.update()
 
                 if append_history:
-                    self.history.append(path)
+                    self.add_history(path)
+                else:
+                    if len(self.history) != self.history_index:
+                        self.history = self.history[: self.history_index]
+
                 return
 
         raise ValueError(f"Route {path} not found")
 
     def go_back(self):
         if len(self.history) > 1:
+            self.history_index -= 1
             self.navigate(self.history[-2], append_history=False)
-            self.history.pop()
 
     def go_forward(self):
         if len(self.history) > 0 and self.history[-1] != self.current_path:
+            self.history_index -= 1
             self.navigate(self.history[-1], append_history=False)
-            self.history.pop()
+
+    def route(self, path: str):
+        def decorator(func):
+            self.add_route(path, func())
+            return func
+
+        return decorator

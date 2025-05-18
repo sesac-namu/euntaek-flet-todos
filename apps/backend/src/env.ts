@@ -1,3 +1,3 @@
 export const env = {
-	DATABASE_URL: "database.db",
+  DATABASE_URL: "database.db",
 };
