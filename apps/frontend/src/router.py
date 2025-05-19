@@ -1,3 +1,4 @@
+from typing import Callable, Optional
 import flet as ft
 
 
@@ -5,9 +6,9 @@ class Route:
     path: str
     view: ft.View
 
-    def __init__(self, path: str, view_components: list[ft.Control]):
+    def __init__(self, path: str, view: ft.Control):
         self.path = path
-        self.view = ft.View(path, view_components)
+        self.view = ft.View(path, [view])
 
 
 class Router:
@@ -37,22 +38,31 @@ class Router:
             self.history_index += 1
             self.history.append(path)
 
-    def add_route(self, path: str, view_components: list[ft.Control]):
-        route = Route(path, view_components)
+    def add_route(self, path: str, view: ft.Control):
+        route = Route(path, view)
         self.routes.append(route)
 
-    def navigate(self, path: str, append_history: bool = True):
+    def navigate(
+        self,
+        path: str,
+        append_history: bool = True,
+        callback: Optional[Callable] = None,
+    ):
         for route in self.routes:
             if route.path == path:
                 self.page.views.clear()
                 self.page.views.append(route.view)
                 self.page.update()
+                route.view.update()
 
                 if append_history:
                     self.add_history(path)
                 else:
                     if len(self.history) != self.history_index:
                         self.history = self.history[: self.history_index]
+
+                if callback:
+                    callback()
 
                 return
 
