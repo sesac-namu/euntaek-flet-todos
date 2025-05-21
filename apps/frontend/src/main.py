@@ -2,7 +2,6 @@ from typing import Any, Literal, Optional
 import flet as ft
 from router import Router
 import requests
-import requests.auth as auth
 
 API_ROUTE = "http://localhost:3000"
 TOKEN_KEY = "token"
@@ -97,9 +96,34 @@ def main(page: ft.Page):
             )
         )
 
-    todo_list = ft.ListView()
+    todo_list = ft.ListView(spacing=20)
+    stats = ft.Text("0 / 0", size=24)
     title = ft.TextField(label="Title", data="")
     contents = ft.TextField(label="Contents", data="")
+    contents_dialog_contents = ft.Column([])
+    contents_dialog = ft.AlertDialog(
+        modal=True,
+        title=ft.Row(
+            [
+                ft.Text("Todo"),
+                ft.IconButton(
+                    ft.Icons.CLOSE, on_click=lambda e: page.close(contents_dialog)
+                ),
+            ],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+        ),
+        content=contents_dialog_contents,
+        alignment=ft.alignment.center,
+        on_dismiss=lambda e: clear_contents_dialog(),
+    )
+
+    def clear_contents_dialog():
+        contents_dialog_contents.controls.clear()
+
+    def open_contents_dialog(title: str, contents: str):
+        contents_dialog_contents.controls.append(ft.Text(title))
+        contents_dialog_contents.controls.append(ft.Text(contents))
+        page.open(contents_dialog)
 
     def clear_todo_form():
         title.data = ""
@@ -120,7 +144,12 @@ def main(page: ft.Page):
         )
         delete_button = ft.IconButton(icon=ft.Icons.DELETE, on_click=lambda e: delete())
         todo_item = ft.ListTile(
-            title=item_title, leading=checkbox, trailing=delete_button, data=id
+            title=item_title,
+            leading=checkbox,
+            trailing=delete_button,
+            data=id,
+            hover_color=ft.Colors.ON_PRIMARY,
+            on_click=lambda e: open_contents_dialog(item_title.data or "", contents),
         )
 
         def update_title(e: ft.ControlEvent):
@@ -137,14 +166,6 @@ def main(page: ft.Page):
                 item_title.color = "black"
             item_title.update()
 
-        def update_contents(e: ft.ControlEvent):
-            fetch(
-                f"/todos/update/contents/by_id/{id}",
-                "PATCH",
-                {"contents": e.data},
-                cookies={"session": page.session.get(TOKEN_KEY)},
-            )
-
         def update_checked(e: ft.ControlEvent):
             fetch(
                 f"/todos/update/checked/by_id/{id}",
@@ -152,6 +173,17 @@ def main(page: ft.Page):
                 {"checked": e.data},
                 cookies={"session": page.session.get(TOKEN_KEY)},
             )
+
+            s = stats.value
+            if s is not None:
+                ss = s.split(" / ")
+
+                if e.data == "true":
+                    ss[0] = str(int(ss[0]) + 1)
+                else:
+                    ss[0] = str(int(ss[0]) - 1)
+                stats.value = " / ".join(ss)
+            stats.update()
 
         def delete():
             if (
@@ -166,6 +198,15 @@ def main(page: ft.Page):
 
             todo_list.controls.remove(todo_item)
             todo_list.update()
+
+            s = stats.value
+            if s is not None:
+                ss = s.split(" / ")
+                ss[1] = str(int(ss[1]) - 1)
+                if checked:
+                    ss[0] = str(int(ss[0]) - 1)
+                stats.value = " / ".join(ss)
+            stats.update()
 
         todo_list.controls.append(todo_item)
 
@@ -195,6 +236,14 @@ def main(page: ft.Page):
 
             todo_list.update()
             clear_todo_form()
+
+            s = stats.value
+            if s is not None:
+                ss = s.split(" / ")
+                ss[1] = str(int(ss[1]) + 1)
+                stats.value = " / ".join(ss)
+            stats.update()
+
             home_view.update()
 
     def fetch_todos():
@@ -218,6 +267,8 @@ def main(page: ft.Page):
 
         todo_list.controls.clear()
 
+        checked = 0
+
         for todo in res["data"]:
             create_todo(
                 todo["id"],
@@ -226,15 +277,27 @@ def main(page: ft.Page):
                 todo["checked"],
             )
 
+            if todo["checked"]:
+                checked += 1
+
         todo_list.update()
+
+        stats.value = f"{checked} / {len(res['data'])}"
+        stats.update()
 
     home_view = ft.Column(
         [
             title,
             contents,
-            ft.FloatingActionButton(
-                icon=ft.Icons.ADD,
-                on_click=add_todo,
+            ft.Row(
+                [
+                    ft.FloatingActionButton(
+                        icon=ft.Icons.ADD,
+                        on_click=add_todo,
+                    ),
+                    stats,
+                ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             ),
             todo_list,
         ]
@@ -247,11 +310,13 @@ def main(page: ft.Page):
     login_username = ft.TextField(label="Username", data="")
     login_password = ft.TextField(label="Password", data="", password=True)
 
-    login_clear_button = ft.FloatingActionButton(
+    login_clear_button = ft.TextButton(
+        "Clear",
         icon=ft.Icons.CLEAR,
         on_click=lambda e: login_clear(),
     )
-    login_submit_button = ft.FloatingActionButton(
+    login_submit_button = ft.FilledButton(
+        "Login",
         icon=ft.Icons.LOGIN,
         on_click=lambda e: login_submit(),
     )
@@ -292,6 +357,7 @@ def main(page: ft.Page):
 
     login_view = ft.Column(
         [
+            ft.Text("Login"),
             login_username,
             login_password,
             ft.Row(
@@ -299,9 +365,10 @@ def main(page: ft.Page):
                     login_clear_button,
                     login_submit_button,
                     login_failed,
-                ]
+                ],
+                alignment=ft.MainAxisAlignment.END,
             ),
-        ]
+        ],
     )
 
     @router.route("/login")
@@ -346,19 +413,23 @@ def main(page: ft.Page):
         else:
             router.navigate("/login")
 
-    signup_clear = ft.FloatingActionButton(
-        icon=ft.Icons.CLEAR, on_click=lambda e: clear_signup()
+    signup_clear = ft.TextButton(
+        "Clear", icon=ft.Icons.CLEAR, on_click=lambda e: clear_signup()
     )
-    signup_submit = ft.FloatingActionButton(
-        icon=ft.Icons.PERSON_ADD, on_click=lambda e: on_signup_submit_click()
+    signup_submit = ft.FilledButton(
+        "Signup", icon=ft.Icons.PERSON_ADD, on_click=lambda e: on_signup_submit_click()
     )
 
     signup_view = ft.Column(
         [
+            ft.Text("Signup"),
             signup_username,
             signup_password,
             signup_email,
-            ft.Row([signup_clear, signup_submit, signup_failed]),
+            ft.Row(
+                [signup_clear, signup_submit, signup_failed],
+                alignment=ft.MainAxisAlignment.END,
+            ),
         ]
     )
 
